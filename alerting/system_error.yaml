@@ -1,0 +1,15 @@
+id: alert_system_error
+name: "System Error Alert"
+trigger:
+  type: "event"
+  event_id: "system.log"
+conditions:
+  - field: "level"
+    operator: "eq"
+    value: "ERROR"
+actions:
+  - service: "smtp.notify"
+    data:
+      subject: "Critical System Error: {{ message }}"
+      message: "An error occurred at {{ timestamp }}. Details: {{ details }}"
+

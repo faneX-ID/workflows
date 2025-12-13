@@ -1,0 +1,10 @@
+{
+    "workflows": [
+        {
+            "id": "alert_system_error",
+            "name": "System Error Alert",
+            "file": "alerting/system_error.yaml",
+            "version": "1.0.0"
+        }
+    ]
+}
