@@ -1,0 +1,26 @@
+{
+    "schema_version": "2.0.0",
+    "domain": "workflows",
+    "name": "Workflows Repository",
+    "version": "1.0.0",
+    "description": "Repository containing workflow definitions for faneX-ID system automation and alerting.",
+    "min_core_version": "2025.12.0",
+    "logo": "https://cdn-icons-png.flaticon.com/512/1828/1828817.png",
+    "documentation": "https://fanex-id.com/docs/workflows",
+    "source_url": "https://github.com/faneX-ID/workflows",
+    "codeowners": [
+        "@faneX-Team"
+    ],
+    "is_system": true,
+    "connection_type": "local",
+    "capabilities": [
+        "automation",
+        "scheduler"
+    ],
+    "implementations": {},
+    "requirements": [],
+    "config_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}
