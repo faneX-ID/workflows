@@ -1,0 +1,89 @@
+name: New Workflow Request
+description: Request a new workflow to be added
+title: "[Workflow Request] "
+labels: ["workflow", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for requesting a new workflow! Please fill out all sections below.
+
+  - type: input
+    id: workflow-name
+    attributes:
+      label: Workflow Name
+      description: The name of the workflow (e.g., "Employee Onboarding", "Account Sync")
+      placeholder: e.g., Employee Onboarding
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Workflow Description
+      description: A clear description of what this workflow does.
+      placeholder: |
+        Example: Automatically creates user accounts when a new employee is added to the system.
+    validations:
+      required: true
+
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Trigger
+      description: What triggers this workflow? (Event, schedule, manual, etc.)
+      placeholder: |
+        Example:
+        - Trigger: Event (employee.created)
+        - Schedule: Daily at 9 AM
+        - Manual: User-initiated
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Workflow Steps
+      description: Describe the steps this workflow should perform
+      placeholder: |
+        Example:
+        1. Validate employee data
+        2. Create Active Directory account
+        3. Send welcome email
+        4. Create mailbox
+        5. Add to distribution groups
+    validations:
+      required: true
+
+  - type: textarea
+    id: integrations
+    attributes:
+      label: Required Integrations
+      description: Which integrations does this workflow use?
+      placeholder: |
+        Example:
+        - active_directory
+        - smtp-standard
+        - slack_notifications
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe the business use case for this workflow
+      placeholder: |
+        Example: HR department needs to automatically provision accounts for new employees
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues to ensure this workflow hasn't been requested before
+          required: true
+        - label: I have checked existing workflows for similar functionality
+          required: true
