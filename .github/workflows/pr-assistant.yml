@@ -1,0 +1,213 @@
+name: PR Assistant
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+  issues: write
+
+env:
+  REQUIRED_WORKFLOW_SCHEMA_VERSION: "2.0.0"
+
+jobs:
+  # =================================================================================
+  # JOB 1: PR Validation & Feedback
+  # Validates workflow definitions and structure
+  # =================================================================================
+  pr-validation:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          pip install pyyaml jsonschema
+
+      # --- 1. Validate workflows.json ---
+      - name: 📋 Validate workflows.json
+        run: |
+          python << 'EOF'
+          import json
+          import sys
+          from pathlib import Path
+
+          workflows_json = Path("workflows.json")
+          if not workflows_json.exists():
+              print("❌ workflows.json not found")
+              sys.exit(1)
+
+          with open(workflows_json) as f:
+              data = json.load(f)
+
+          if "workflows" not in data or not isinstance(data["workflows"], list):
+              print("❌ workflows.json must contain 'workflows' array")
+              sys.exit(1)
+
+          print(f"✅ workflows.json valid ({len(data['workflows'])} workflows)")
+          EOF
+
+      # --- 2. Validate Workflow YAML Files ---
+      - name: 📝 Validate Workflow YAML Files
+        run: |
+          python << 'EOF'
+          import yaml
+          import sys
+          from pathlib import Path
+
+          errors = []
+          validated = 0
+
+          print("Validating workflow YAML files...")
+
+          # Load workflows.json to get workflow definitions
+          workflows_json = Path("workflows.json")
+          if workflows_json.exists():
+              import json
+              with open(workflows_json) as f:
+                  workflows_data = json.load(f)
+
+              for workflow in workflows_data.get("workflows", []):
+                  workflow_file = workflow.get("file")
+                  if not workflow_file:
+                      continue
+
+                  workflow_path = Path(workflow_file)
+                  if not workflow_path.exists():
+                      errors.append(f"Workflow file '{workflow_file}' not found")
+                      continue
+
+                  try:
+                      with open(workflow_path) as f:
+                          workflow_data = yaml.safe_load(f)
+
+                      # Basic validation
+                      required_fields = ["id", "name", "trigger"]
+                      for field in required_fields:
+                          if field not in workflow_data:
+                              errors.append(f"{workflow_file}: missing required field '{field}'")
+
+                      # Validate trigger
+                      trigger = workflow_data.get("trigger", {})
+                      if not isinstance(trigger, dict):
+                          errors.append(f"{workflow_file}: trigger must be an object")
+                      elif "type" not in trigger:
+                          errors.append(f"{workflow_file}: trigger.type is required")
+
+                      # Validate actions (if present)
+                      actions = workflow_data.get("actions", [])
+                      if actions and not isinstance(actions, list):
+                          errors.append(f"{workflow_file}: actions must be an array")
+
+                      if not any(e.startswith(workflow_file) for e in errors):
+                          validated += 1
+                          print(f"✅ {workflow_file} valid")
+
+                  except yaml.YAMLError as e:
+                      errors.append(f"{workflow_file}: Invalid YAML - {e}")
+                  except Exception as e:
+                      errors.append(f"{workflow_file}: {e}")
+
+          # Also check for any YAML files in workflow directories
+          for yaml_file in Path(".").rglob("*.yaml"):
+              if yaml_file.name == "workflows.json" or ".github" in str(yaml_file):
+                  continue
+
+              if yaml_file not in [Path(w.get("file")) for w in workflows_data.get("workflows", [])]:
+                  try:
+                      with open(yaml_file) as f:
+                          yaml.safe_load(f)
+                      print(f"ℹ️ Found additional workflow file: {yaml_file}")
+                  except:
+                      pass
+
+          if errors:
+              print("\n❌ Errors found:")
+              for e in errors:
+                  print(f"  - {e}")
+              sys.exit(1)
+          else:
+              print(f"\n✅ All {validated} workflow(s) valid.")
+          EOF
+
+      # --- 3. Validate manifest.json (if exists) ---
+      - name: 📄 Validate manifest.json
+        run: |
+          python << 'EOF'
+          import json
+          from pathlib import Path
+
+          manifest_path = Path("manifest.json")
+          if manifest_path.exists():
+              try:
+                  with open(manifest_path) as f:
+                      manifest = json.load(f)
+
+                  required_fields = ["schema_version", "domain", "name", "version"]
+                  for field in required_fields:
+                      if field not in manifest:
+                          print(f"⚠️ manifest.json missing field '{field}'")
+                      else:
+                          print(f"✅ manifest.json valid")
+              except Exception as e:
+                  print(f"⚠️ Error reading manifest.json: {e}")
+          else:
+              print("ℹ️ manifest.json not found (optional)")
+          EOF
+
+      # --- 4. Feedback Comment ---
+      - name: Feedback Comment
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const outcome = '${{ job.status }}';
+            if (outcome === 'failure') {
+               github.rest.issues.createComment({
+                 issue_number: context.issue.number,
+                 owner: context.repo.owner,
+                 repo: context.repo.repo,
+                 body: "❌ **PR Validation Failed**\n\nPlease check:\n- workflows.json is valid\n- All workflow YAML files are valid\n- Required fields (id, name, trigger) are present"
+               });
+            } else if (outcome === 'success') {
+               github.rest.issues.createComment({
+                 issue_number: context.issue.number,
+                 owner: context.repo.owner,
+                 repo: context.repo.repo,
+                 body: "✅ **PR Validation Passed**\n\nAll workflow checks passed successfully!"
+               });
+            }
+
+  # =================================================================================
+  # JOB 2: Thank Contributor
+  # =================================================================================
+  thank-you:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            const admins = ['FaserF', 'fabia', 'github-actions[bot]'];
+            if (admins.includes(author)) return;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🎉 **Thank you @${author}!**\n\nYour contribution to the **faneX-ID Workflows** repository is valuable! 🚀`
+            });
