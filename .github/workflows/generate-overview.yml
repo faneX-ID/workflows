@@ -1,0 +1,76 @@
+name: Generate Components Overview
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**/manifest.json'
+      - '**/*.yaml'
+      - '**/*.yml'
+      - '.github/workflows/generate-overview.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**/manifest.json'
+      - '**/*.yaml'
+      - '**/*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-overview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate Components Overview
+        id: generate
+        run: |
+          python .github/scripts/generate_overview.py
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet README.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.check-changes.outputs.changed == 'true' && github.event_name == 'push'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "chore: update workflows overview" || exit 0
+          git push
+
+      - name: Create PR comment
+        if: github.event_name == 'pull_request' && steps.check-changes.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const readme = fs.readFileSync('README.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📋 Workflows Overview Updated\n\nThe workflows overview README has been updated based on the changes in this PR.\n\n<details>\n<summary>View updated README</summary>\n\n\`\`\`markdown\n${readme}\n\`\`\`\n\n</details>`
+            });
+
