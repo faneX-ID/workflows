@@ -39,3 +39,4 @@
 - [ ] The workflow manifest follows schema version 2.0.0
 - [ ] All integrations used are available
 - [ ] Error handling is properly implemented
+
